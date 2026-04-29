@@ -1,0 +1,134 @@
+---
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 1 * * 6"  # Weekly Saturday 01:00 UTC
+
+env:
+  CI: true
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: ⏱️ Start timer
+        id: timer
+        run: echo "start_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: 🏷️ Set lowercase image name
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          echo "IMAGE_NAME=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🧹 Free disk space
+        run: |
+          echo "📊 Disk space before cleanup:"
+          df -h
+
+          echo "🗑️ Removing unnecessary software..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+          echo "🧹 Cleaning Docker..."
+          docker system prune -af --volumes || true
+
+          echo "📊 Disk space after cleanup:"
+          df -h
+
+      - name: 🔒 Log in to the GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🛡️ Anchore security scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        with:
+          path: "."
+          fail-build: false
+
+      - name: 📊 Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+            type=sha,prefix=sha-
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          platforms: linux/amd64,linux/arm64
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: 🚀 Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ steps.meta.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
+      - name: 🧹 Cleanup build artifacts
+        if: always()
+        run: |
+          echo "🗑️ Pruning Docker build cache..."
+          docker buildx prune -f --filter until=1h || true
+          docker system prune -f --filter until=1h || true
+
+          echo "📊 Remaining disk space:"
+          df -h
+
+      - name: 📊 Collect metrics
+        if: always()
+        env:
+          START_TIME: ${{ steps.timer.outputs.start_time }}
+        run: |
+          end_time=$(date +%s)
+          duration=$((end_time - START_TIME))
+          echo "::notice title=Build Metrics::Duration: ${duration}s"

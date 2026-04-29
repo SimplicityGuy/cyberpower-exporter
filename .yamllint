@@ -1,0 +1,25 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 175
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  truthy:
+    allowed-values: ["true", "false", "on", "off"]
+  quoted-strings: disable
+  brackets:
+    max-spaces-inside: 1
+  document-start:
+    present: true
+  indentation:
+    spaces: 2
+    indent-sequences: true
+
+ignore: |
+  .venv/
+  venv/
+  .git/
