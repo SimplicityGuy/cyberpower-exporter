@@ -68,6 +68,9 @@ jobs:
       - name: 🧪 Run pre-commit hooks
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
+      - name: ✅ Run pytest
+        run: uv run pytest --cov=cyberpower_exporter --cov-report=term-missing
+
   # ============================================================================
   # DOCKER VALIDATE — independent hadolint check (mirrors discogsography) plus
   # builds the builder stage so we catch resolver/lockfile issues fast.
