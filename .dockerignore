@@ -1,0 +1,71 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# Modern Python
+.pdm-python
+.python-version
+# Note: uv.lock is needed in the Docker build context
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Development files
+.pre-commit-config.yaml
+.yamllint
+CLAUDE.md
+NOTICE
+LICENSE
+**/*.md
+!README.md
+
+# Tests
+tests/
+
+# Temp
+*.tmp
+*.temp
+.cache/
+*.log

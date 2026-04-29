@@ -14,6 +14,7 @@ on:
 
 env:
   CI: true
+  PYTHON_VERSION: "3.13"
   REGISTRY: ghcr.io
 
 permissions:
@@ -21,7 +22,90 @@ permissions:
   packages: write
 
 jobs:
+  # ============================================================================
+  # CODE QUALITY — runs pre-commit (ruff, mypy, bandit, hadolint, shellcheck,
+  # shfmt, actionlint, yamllint, plus standard hygiene). Must pass before any
+  # docker work.
+  # ============================================================================
+  code-quality:
+    name: Code quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🔧 Setup Python and UV
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 💾 Cache pre-commit
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-v1-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pre-commit-v1-
+
+      - name: 💾 Cache tools
+        uses: actions/cache@v5
+        with:
+          path: ~/.arkade
+          key: ${{ runner.os }}-tools-arkade-v1
+          restore-keys: |
+            ${{ runner.os }}-tools-arkade-
+
+      - name: 🔧 Install hadolint
+        uses: alexellis/arkade-get@1eef818e467c387d3f50cfe0d2c565d1cbe82b03  # master
+        with:
+          hadolint: latest
+
+      - name: 📦 Install dependencies
+        run: uv sync --all-groups --frozen
+
+      - name: 🧪 Run pre-commit hooks
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  # ============================================================================
+  # DOCKER VALIDATE — independent hadolint check (mirrors discogsography) plus
+  # builds the builder stage so we catch resolver/lockfile issues fast.
+  # ============================================================================
+  docker-validate:
+    name: Docker validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [code-quality]
+
+    steps:
+      - name: 🔀 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: 🔍 Validate Dockerfile with hadolint
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5  # v3.3.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+      - name: 🐳 Test Docker builder stage
+        run: |
+          echo "🔨 Testing builder stage..."
+          docker build \
+            --build-arg PYTHON_VERSION=${{ env.PYTHON_VERSION }} \
+            -f Dockerfile . \
+            --target builder
+          echo "✅ Builder stage built successfully"
+
+  # ============================================================================
+  # BUILD — multi-arch build & push to GHCR. Gated on quality + docker validate.
+  # ============================================================================
   build:
+    name: Build image
+    needs: [code-quality, docker-validate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -110,6 +194,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
             BUILD_DATE=${{ github.event.repository.updated_at }}
             BUILD_VERSION=${{ steps.meta.outputs.version }}
             VCS_REF=${{ github.sha }}

@@ -1,0 +1,158 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cyberpower-exporter"
+version = "0.1.0"
+description = "Prometheus exporter for CyberPower UPS systems via the pwrstatd Unix socket"
+authors = [{name = "Robert Wlodarczyk", email = "robert@simplicityguy.com"}]
+requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+]
+license = {text = "Apache-2.0"}
+dependencies = [
+    "prometheus-client>=0.21.0",
+]
+
+[project.scripts]
+cyberpower-exporter = "cyberpower_exporter.exporter:main"
+
+[project.urls]
+Homepage = "https://github.com/SimplicityGuy/cyberpower-exporter"
+Source = "https://github.com/SimplicityGuy/cyberpower-exporter"
+Issues = "https://github.com/SimplicityGuy/cyberpower-exporter/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cyberpower_exporter"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/cyberpower_exporter/py.typed" = "cyberpower_exporter/py.typed"
+
+[tool.ruff]
+line-length = 150
+target-version = "py313"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+select = [
+    "ARG",  # flake8-unused-arguments
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "PLC",  # pylint conventions
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # ruff-specific rules
+    "S",    # bandit security rules
+    "SIM",  # flake8-simplify
+    "T20",  # flake8-print (no print statements)
+    "TCH",  # flake8-type-checking
+    "UP",   # pyupgrade
+    "W",    # pycodestyle warnings
+    "W191", # indentation contains tabs
+]
+fixable = ["ALL"]
+unfixable = []
+ignore = [
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "E501",  # line too long, handled by ruff format
+    "S101",  # use of assert detected (allow assert statements)
+]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+combine-as-imports = true
+split-on-trailing-comma = true
+known-first-party = ["cyberpower_exporter"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+force-sort-within-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["PLC", "S105", "T201"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+explicit_package_bases = true
+mypy_path = "src"
+packages = ["cyberpower_exporter"]
+exclude = "^tests/"
+
+[tool.coverage.run]
+source = ["src/cyberpower_exporter"]
+omit = ["*/tests/*", "*/__init__.py"]
+relative_files = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --tb=short"
+testpaths = ["tests"]
+python_files = ["*_test.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+pythonpath = ["src"]
+timeout = 60
+timeout_method = "thread"
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.4",
+    "mypy>=1.20.1",
+    "pip-audit>=2.10.0",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.15.10",
+]
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests", "venv"]
+# B101 skipped: assert is acceptable in source. B104 skipped: binding 0.0.0.0 is required for the exporter to be reachable from outside the container.
+skips = ["B101", "B104"]
+
+[tool.uv]
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",   # linux/amd64
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",  # linux/arm64
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",  # macOS Intel
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",   # macOS Apple Silicon
+]

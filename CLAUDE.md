@@ -2,27 +2,51 @@
 
 ## Project Overview
 
-**cyberpower-exporter** is a single-file Python Prometheus exporter that reads CyberPower UPS status from the `pwrstatd` Unix socket and exposes metrics on port 9200. It is shipped as a Docker image only — there is no Python package, no test suite, and no service composition.
+**cyberpower-exporter** is a Python 3.13+ Prometheus exporter that reads CyberPower UPS status from the `pwrstatd` Unix socket and exposes metrics on port 9200. It is shipped as a multi-arch Docker image to GHCR.
 
 The implementation is derived from Mike Shoup's [`shouptech/cyberpower_exporter`](https://github.com/shouptech/cyberpower_exporter) and is licensed under Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
+> **CRITICAL**: Use **[uv](https://github.com/astral-sh/uv)** exclusively for all Python operations. **Never use pip, python, pytest, or mypy directly** — always prefix with `uv run`.
+
 ## AI Development Rules
 
+- **ALWAYS use `uv run`** for any Python command (ruff, mypy, bandit, pytest, python).
 - **Open a PR for every change** — never push directly to `main`.
-- **Run `pre-commit run --all-files`** before committing. The suite includes hadolint, shellcheck, shfmt, actionlint, and yamllint.
-- **Emojis in GitHub Actions** step names; single quotes inside `${{ }}` expressions, double quotes for YAML strings (matches the discogsography style).
-- **Keep it small.** This project intentionally does not depend on uv, pyproject.toml, or a multi-stage build. If adding tooling, justify why a single Dockerfile + single Python file is no longer sufficient.
-- **Preserve attribution.** The Apache 2.0 header in `exporter.py` must remain. Any new source file derived from upstream must carry the same header.
+- **Run `pre-commit run --all-files`** before committing.
+- **Emojis in GitHub Actions** step names; single quotes inside `${{ }}` expressions, double quotes for YAML strings.
+- **Preserve attribution.** The Apache 2.0 header in `src/cyberpower_exporter/exporter.py` must remain. Any new source file derived from upstream must carry the same header.
+- **Type-clean.** Mypy runs in strict mode (`disallow_untyped_defs`, `warn_unreachable`, etc.). New code must pass.
+- **Bandit B104** (binding 0.0.0.0) is intentionally skipped — the exporter must bind all interfaces inside the container. Do not change without justification.
 
 ## Repository Layout
 
 ```
-exporter.py              Single-file Prometheus exporter
-Dockerfile               Slim Python image, runs as non-root in root group for socket access
-LICENSE                  Apache 2.0
-NOTICE                   Upstream attribution required by Apache 2.0 §4(d)
-.pre-commit-config.yaml  hadolint, shellcheck, shfmt, actionlint, yamllint, standard hygiene hooks
-.github/workflows/       Build (GHCR), cleanup-cache (PR close), cleanup-images (monthly)
+src/cyberpower_exporter/
+    __init__.py           Package init; re-exports main()
+    exporter.py           Prometheus exporter
+    py.typed              PEP 561 marker so downstream type checkers see our types
+pyproject.toml            Project metadata, ruff/mypy/bandit/coverage/pytest config, uv environments
+uv.lock                   Pinned dependency lockfile (committed)
+Dockerfile                uv-based multi-stage build → distroless-ish slim runtime
+LICENSE                   Apache 2.0
+NOTICE                    Upstream attribution required by Apache 2.0 §4(d)
+.pre-commit-config.yaml   ruff, mypy (local), bandit, hadolint, shellcheck, shfmt, actionlint, yamllint
+.github/workflows/        Build (quality + GHCR), cleanup-cache (PR close), cleanup-images (monthly)
+.github/dependabot.yml    github-actions, docker, pip ecosystems
+```
+
+## uv Commands
+
+```bash
+uv sync --all-groups           # Install runtime + dev deps
+uv add package-name            # Add runtime dependency
+uv add --dev package-name      # Add dev dependency
+uv run ruff check .            # Lint
+uv run ruff format .           # Format
+uv run mypy .                  # Type check
+uv run bandit -c pyproject.toml -r src/   # Security scan
+uv run cyberpower-exporter     # Run the exporter (entry point from pyproject.toml)
+uv lock --upgrade-package name # Update specific package
 ```
 
 ## How It Works

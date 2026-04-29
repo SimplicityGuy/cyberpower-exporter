@@ -44,14 +44,28 @@ The container runs as a non-root `exporter` user in the `root` group for socket 
 
 ## Development
 
-Install [pre-commit](https://pre-commit.com/) hooks before contributing:
+This project uses [uv](https://github.com/astral-sh/uv) for Python dependency management. After cloning:
 
 ```bash
-pre-commit install
-pre-commit run --all-files
+uv sync --all-groups          # Install runtime + dev deps into .venv
+pre-commit install            # One-time hook setup
+pre-commit run --all-files    # Run the full hook suite
 ```
 
-The hook suite includes [hadolint](https://github.com/hadolint/hadolint) for the Dockerfile, [shellcheck](https://www.shellcheck.net/) and [shfmt](https://github.com/mvdan/sh) for shell scripts, and [actionlint](https://github.com/rhysd/actionlint)/[yamllint](https://yamllint.readthedocs.io/) for the GitHub Actions workflows.
+The dev toolchain matches the [discogsography](https://github.com/SimplicityGuy/discogsography) standards:
+
+- **ruff** — lint + format (`uv run ruff check . && uv run ruff format --check .`)
+- **mypy** — strict type checking (`uv run mypy .`)
+- **bandit** — security linting (`uv run bandit -c pyproject.toml -r src/`)
+- **hadolint** — Dockerfile linting
+- **shellcheck** + **shfmt** — shell script linting/formatting
+- **actionlint** + **yamllint** — GitHub Actions and YAML linting
+
+Run the exporter locally without Docker:
+
+```bash
+uv run cyberpower-exporter
+```
 
 ## License
 
