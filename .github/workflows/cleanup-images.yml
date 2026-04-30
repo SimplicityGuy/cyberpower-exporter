@@ -1,0 +1,39 @@
+---
+name: Cleanup Docker Images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 15 * *"  # 15th of each month, 00:00 UTC
+
+concurrency:
+  group: cleanup-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: 🏷️ Resolve package name
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          PACKAGE="${REPO##*/}"
+          echo "PACKAGE=$(echo "$PACKAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: 🧹 Cleanup Docker Images
+        uses: dataaxiom/ghcr-cleanup-action@cd0cdb900b5dbf3a6f2cc869f0dbb0b8211f50c4  # v1.0.16
+        with:
+          delete-partial-images: true
+          delete-untagged: true
+          keep-n-tagged: 2
+          older-than: 30 days
+          token: ${{ secrets.GITHUB_TOKEN }}
+          package: ${{ env.PACKAGE }}
+          owner: ${{ github.repository_owner }}
