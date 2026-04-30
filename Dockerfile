@@ -24,7 +24,7 @@ COPY src/ ./src/
 
 # hadolint ignore=SC2015
 RUN --mount=type=cache,target=/tmp/.cache/uv \
-    uv sync --frozen --no-dev && \
+    uv sync --frozen --no-dev --no-editable && \
     find /app/.venv -type f -name "*.pyc" -delete && \
     find /app/.venv -type f -name "*.pyo" -delete && \
     find /app/.venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
