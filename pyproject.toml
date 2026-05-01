@@ -19,8 +19,8 @@ classifiers = [
 ]
 license = {text = "Apache-2.0"}
 dependencies = [
-    "prometheus-client>=0.21.0",
-    "structlog>=25.1.0",
+    "prometheus-client>=0.25.0",
+    "structlog>=25.5.0",
 ]
 
 [project.scripts]
@@ -136,13 +136,13 @@ timeout_method = "thread"
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
-    "mypy>=1.20.1",
+    "mypy>=1.20.2",
     "pip-audit>=2.10.0",
-    "pre-commit>=4.5.1",
+    "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-timeout>=2.4.0",
-    "ruff>=0.15.10",
+    "ruff>=0.15.12",
 ]
 
 [tool.bandit]
