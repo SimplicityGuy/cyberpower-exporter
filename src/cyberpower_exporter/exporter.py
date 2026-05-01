@@ -18,9 +18,12 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import sys
 import time
+from typing import Any
 
 from prometheus_client import Gauge, Info, start_http_server
+import structlog
 
 
 POWER_STAT_SOCKET = "/var/pwrstatd.ipc"
@@ -28,25 +31,71 @@ STATUS_COMMAND = b"STATUS\n\n"
 LISTEN_PORT = 9200
 DEFAULT_POLL_INTERVAL = 5
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 Collectors = dict[str, Gauge | Info]
 
 
-def main() -> None:
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+def configure_logging() -> None:
+    """Configure structlog to emit JSON to stdout for container log aggregators."""
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+
+    shared_processors: list[Any] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+    ]
+
+    structlog.configure(
+        processors=[
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
     )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=shared_processors,
+            processors=[
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                structlog.processors.dict_tracebacks,
+                structlog.processors.JSONRenderer(),
+            ],
+        )
+    )
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
+
+    structlog.contextvars.bind_contextvars(service="cyberpower-exporter")
+
+
+def main() -> None:
+    configure_logging()
+    interval = int(os.getenv("POLL_INTERVAL", str(DEFAULT_POLL_INTERVAL)))
     # Bind on all interfaces so the exporter is reachable from outside the container.
     start_http_server(LISTEN_PORT, addr="0.0.0.0")  # noqa: S104
     collectors = register_prometheus_collectors()
-    interval = int(os.getenv("POLL_INTERVAL", str(DEFAULT_POLL_INTERVAL)))
+    logger.info(
+        "exporter started",
+        listen_port=LISTEN_PORT,
+        poll_interval=interval,
+        socket=POWER_STAT_SOCKET,
+    )
     while True:
         try:
             set_prometheus_values(collectors)
         except Exception:
-            logger.exception("Error polling UPS")
+            logger.exception("error polling UPS", socket=POWER_STAT_SOCKET)
         time.sleep(interval)
 
 
