@@ -116,8 +116,15 @@ def get_data() -> dict[str, str]:
     result: dict[str, str] = {}
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        # Defensive timeout so any future protocol regression surfaces as a
+        # logged exception instead of a silent hang.
+        sock.settimeout(5)
         sock.connect(POWER_STAT_SOCKET)
         sock.sendall(STATUS_COMMAND)
+        # pwrstatd does not half-close after replying; without this shutdown
+        # the recv loop below would block forever waiting for an EOF that
+        # never comes.
+        sock.shutdown(socket.SHUT_WR)
         while True:
             chunk = sock.recv(4096)
             if not chunk:

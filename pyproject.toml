@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cyberpower-exporter"
-version = "0.1.0"
+version = "1.0.0"
 description = "Prometheus exporter for CyberPower UPS systems via the pwrstatd Unix socket"
 authors = [{name = "Robert Wlodarczyk", email = "robert@simplicityguy.com"}]
 requires-python = ">=3.13"

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
+from pathlib import Path
+import socket
+import tempfile
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 from prometheus_client import REGISTRY
@@ -242,3 +248,102 @@ class TestGetData:
             data = exporter.get_data()
 
         assert data == {}
+
+
+# --------------------------------------------------------------------------- #
+# get_data — real-socket regression for pwrstatd half-close behaviour          #
+# --------------------------------------------------------------------------- #
+
+
+class TestGetDataAgainstPwrstatdLikeServer:
+    """Reproduce the exact pwrstatd behaviour that hung the exporter.
+
+    pwrstatd writes its STATUS reply in one packet and then keeps the socket
+    open indefinitely — it does not half-close on its own. Without a
+    client-side half-close (or a socket timeout) the recv loop in get_data()
+    blocks forever and Prometheus gauges never get populated.
+    """
+
+    SAMPLE_PAYLOAD = (
+        b"state=0\n"
+        b"model_name=PR750LCD\n"
+        b"firmware_num=PQ6BN2001641\n"
+        b"battery_volt=24000\n"
+        b"input_rating_volt=120000\n"
+        b"output_rating_watt=525000\n"
+        b"diagnostic_result=1\n"
+        b"battery_remainingtime=621\n"
+        b"battery_charging=no\n"
+        b"battery_discharging=no\n"
+        b"ac_present=yes\n"
+        b"utility_volt=122000\n"
+        b"output_volt=122000\n"
+        b"load=50000\n"
+        b"battery_capacity=100\n"
+    )
+
+    @pytest.mark.timeout(3)
+    def test_get_data_returns_quickly_when_server_keeps_socket_open(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # AF_UNIX paths are length-limited (~104 bytes on Darwin, ~108 on Linux).
+        # pytest's tmp_path can exceed that on macOS, so place the socket under /tmp.
+        tmpdir = Path(tempfile.mkdtemp(prefix="cpx-", dir="/tmp"))
+        socket_path = tmpdir / "p.ipc"
+        stop_server = threading.Event()
+        server_ready = threading.Event()
+
+        def serve() -> None:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                listener.bind(str(socket_path))
+                listener.listen(1)
+                listener.settimeout(2.0)
+                server_ready.set()
+                try:
+                    conn, _ = listener.accept()
+                except OSError:
+                    return
+                with conn:
+                    # Drain the request so sendall on the client side doesn't block.
+                    conn.recv(4096)
+                    conn.sendall(self.SAMPLE_PAYLOAD)
+                    # Mimic pwrstatd: DELIBERATELY DO NOT CLOSE pre-emptively.
+                    # pwrstatd holds the socket open after replying and only
+                    # closes once the client half-closes its write side
+                    # (SHUT_WR), which appears here as recv() returning b"".
+                    # If the client never half-closes (the bug under test),
+                    # this loop just spins until the test signals shutdown,
+                    # so the client's recv() blocks for the full duration.
+                    conn.settimeout(0.05)
+                    deadline = time.monotonic() + 2.0
+                    while time.monotonic() < deadline and not stop_server.is_set():
+                        try:
+                            if conn.recv(4096) == b"":
+                                return  # client half-closed → close our side
+                        except TimeoutError:
+                            continue
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        assert server_ready.wait(timeout=2.0), "server thread failed to bind"
+
+        monkeypatch.setattr(exporter, "POWER_STAT_SOCKET", str(socket_path))
+
+        try:
+            start = time.monotonic()
+            data = exporter.get_data()
+            elapsed = time.monotonic() - start
+
+            assert elapsed < 1.0, f"get_data() took {elapsed:.3f}s — likely hanging on recv()"
+            assert data["model_name"] == "PR750LCD"
+            assert data["firmware_num"] == "PQ6BN2001641"
+            assert data["utility_volt"] == "122000"
+            assert data["battery_capacity"] == "100"
+            assert data["ac_present"] == "yes"
+        finally:
+            stop_server.set()
+            thread.join(timeout=3.0)
+            with contextlib.suppress(FileNotFoundError):
+                socket_path.unlink()
+            tmpdir.rmdir()
