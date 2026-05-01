@@ -52,15 +52,17 @@ uv lock --upgrade-package name # Update specific package
 ## How It Works
 
 1. Container starts; `pwrstatd.ipc` Unix socket is mounted from the host.
-2. `start_http_server(9200)` exposes `/metrics`.
-3. Every `POLL_INTERVAL` seconds, a `STATUS\n\n` command is sent over the socket. The reply is parsed as `key=value` lines and pushed into Prometheus collectors.
-4. Errors during polling are logged but do not exit the process — the next tick retries.
+2. `configure_logging()` wires up structlog with a JSON renderer to stdout (ISO-8601 UTC timestamp, log level, logger name, structured exception tracebacks) and binds `service=cyberpower-exporter` via contextvars.
+3. `start_http_server(9200)` exposes `/metrics`.
+4. Every `POLL_INTERVAL` seconds, a `STATUS\n\n` command is sent over the socket. The reply is parsed as `key=value` lines and pushed into Prometheus collectors.
+5. Errors during polling are logged via `logger.exception(...)` with structured kwargs but do not exit the process — the next tick retries.
 
 ## Configuration
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `POLL_INTERVAL` | `5` | Seconds between UPS status polls |
+| `LOG_LEVEL` | `INFO` | Log level — `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 
 The container runs as a non-root `exporter` user in the `root` group so it can read the host-owned socket.
 

@@ -43,7 +43,7 @@ graph LR
 
     UPS -->|USB| PWRSTATD
     PWRSTATD --- SOCK
-    SOCK -->|STATUS\\n\\n| EXP
+    SOCK -->|STATUS command| EXP
     EXP -->|HTTP :9200/metrics| PROM
     PROM --> GRAF
 
@@ -63,7 +63,8 @@ The exporter polls `pwrstatd` every `POLL_INTERVAL` seconds, parses the `key=val
 - **🔒 Hardened container**: non-root user, healthcheck on `/metrics`, ready for `--cap-drop=ALL --security-opt=no-new-privileges:true`
 - **📦 Reproducible builds**: uv-based multi-stage Dockerfile with a committed `uv.lock`
 - **📝 Type-safe**: full type hints, strict mypy validation, Bandit security scanning
-- **✅ Tested**: 12-test pytest suite with mocked Unix socket and isolated Prometheus registry
+- **🪵 Structured logging**: [structlog](https://www.structlog.org/) with JSON output to stdout, ISO-8601 UTC timestamps, contextvars-merged service tag, and structured exception tracebacks
+- **✅ Tested**: 13-test pytest suite with mocked Unix socket and isolated Prometheus registry
 - **🤖 CI/CD**: code-quality + docker-validate + multi-arch build, monthly image cleanup, weekly scheduled rebuilds, Dependabot for actions, docker, and pip ecosystems
 - **🏷️ OCI labels**: full `org.opencontainers.image.*` set populated from build args (date, version, revision, source, license, base image)
 
@@ -116,10 +117,18 @@ scrape_configs:
 | Environment Variable | Default | Description                          |
 | -------------------- | ------- | ------------------------------------ |
 | `POLL_INTERVAL`      | `5`     | Seconds between UPS status polls     |
-| `LOG_LEVEL`          | `INFO`  | Python logging level                 |
+| `LOG_LEVEL`          | `INFO`  | Log level — `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LISTEN_ADDRESS`     | `0.0.0.0:9200` | Bind address (set by the image) |
 
 The container runs as a non-root `exporter` user in the `root` group so it can read the host-owned socket. The exporter binds `0.0.0.0:9200` so it is reachable from outside the container.
+
+### Log format
+
+Logs are emitted as one JSON object per line on stdout, ready for ingestion by Loki, Fluent Bit, Vector, or Docker's `json-file` driver:
+
+```json
+{"event": "exporter started", "listen_port": 9200, "poll_interval": 5, "socket": "/var/pwrstatd.ipc", "service": "cyberpower-exporter", "level": "info", "logger": "cyberpower_exporter.exporter", "timestamp": "2026-05-01T18:11:35.735897Z"}
+```
 
 ## 👨‍💻 Development
 
@@ -138,7 +147,7 @@ uv run pre-commit install     # Install git hooks
 
 ```bash
 uv run cyberpower-exporter                           # Run the exporter (entry point)
-uv run pytest                                        # Run the test suite (12 tests)
+uv run pytest                                        # Run the test suite (13 tests)
 uv run pytest --cov=cyberpower_exporter              # With coverage report
 uv run ruff check .                                  # Lint
 uv run ruff format .                                 # Format
