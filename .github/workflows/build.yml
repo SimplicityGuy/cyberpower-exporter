@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Python and UV
         uses: ./.github/actions/setup-python-uv
@@ -44,7 +44,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: 💾 Cache pre-commit
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pre-commit
           key: ${{ runner.os }}-pre-commit-v1-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -52,7 +52,7 @@ jobs:
             ${{ runner.os }}-pre-commit-v1-
 
       - name: 💾 Cache tools
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.arkade
           key: ${{ runner.os }}-tools-arkade-v1
@@ -85,13 +85,13 @@ jobs:
 
     steps:
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
       - name: 🔍 Validate Dockerfile with hadolint
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5  # v3.3.0
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6  # v3.4.0
         with:
           dockerfile: Dockerfile
           failure-threshold: error
@@ -130,7 +130,7 @@ jobs:
           echo "IMAGE_NAME=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: 🔀 Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🧹 Free disk space
         run: |
