@@ -32,7 +32,7 @@ LICENSE                   Apache 2.0
 NOTICE                    Upstream attribution required by Apache 2.0 §4(d)
 .pre-commit-config.yaml   ruff, mypy (local), bandit, hadolint, shellcheck, shfmt, actionlint, yamllint
 .github/workflows/        Build (quality + GHCR), cleanup-cache (PR close), cleanup-images (monthly)
-.github/dependabot.yml    github-actions, docker, pip ecosystems
+.github/dependabot.yml    github-actions, docker, uv ecosystems
 ```
 
 ## uv Commands
