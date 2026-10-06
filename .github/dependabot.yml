@@ -18,7 +18,12 @@ updates:
     assignees:
       - "SimplicityGuy"
     groups:
-      actions:
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      actions-version:
+        applies-to: version-updates
         patterns:
           - "*"
 
@@ -39,12 +44,17 @@ updates:
     assignees:
       - "SimplicityGuy"
     groups:
-      docker-images:
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      docker-version:
+        applies-to: version-updates
         patterns:
           - "*"
 
-  # Python dependencies (uv-managed; dependabot uses pip ecosystem to read pyproject.toml)
-  - package-ecosystem: "pip"
+  # Python dependencies (uv-managed: pyproject.toml + uv.lock)
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -62,15 +72,11 @@ updates:
       - "SimplicityGuy"
     open-pull-requests-limit: 10
     groups:
-      python-production:
-        dependency-type: "production"
-        patterns:
-          - "*"
-      python-development:
-        dependency-type: "development"
-        patterns:
-          - "*"
-      python-security:
+      uv-security:
         applies-to: security-updates
+        patterns:
+          - "*"
+      uv-version:
+        applies-to: version-updates
         patterns:
           - "*"
