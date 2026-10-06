@@ -83,9 +83,9 @@ ENV LISTEN_ADDRESS=0.0.0.0:9200 \
 EXPOSE 9200
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:9200/metrics > /dev/null || exit 1
+    CMD ["sh", "-c", "curl -fsS http://127.0.0.1:9200/metrics > /dev/null || exit 1"]
 
-USER exporter:exporter
+USER ${UID}:${GID}
 
 # Security: This container should be run with:
 # docker run --cap-drop=ALL --security-opt=no-new-privileges:true ...
